@@ -1,0 +1,23 @@
+{
+  "name": "mcp-google-forms",
+  "version": "0.0.1",
+  "description": "MCP server for the Google Forms API — create forms, manage questions, read responses and watch for new submissions. For Claude, Cursor, Codex and other AI clients.",
+  "keywords": ["mcp", "model-context-protocol", "google", "google-forms", "forms", "surveys", "claude", "cursor", "codex"],
+  "homepage": "https://github.com/A1-x-Tech/mcp-google-forms#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/A1-x-Tech/mcp-google-forms.git"
+  },
+  "license": "MIT",
+  "author": "gistrec <gistrec@gmail.com>",
+  "type": "module",
+  "bin": {
+    "mcp-google-forms": "index.js"
+  },
+  "files": [
+    "index.js"
+  ],
+  "engines": {
+    "node": ">=18"
+  }
+}
