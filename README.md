@@ -23,7 +23,7 @@ for you, from a blank form to response analysis.
      -e GOOGLE_FORMS_CLIENT_ID=your_client_id \
      -e GOOGLE_FORMS_CLIENT_SECRET=your_client_secret \
      -e GOOGLE_FORMS_REFRESH_TOKEN=your_refresh_token \
-     -- npx -y mcp-google-forms
+     -- npx -y mcp-google-forms@latest
    ```
 
 3. Ask the assistant: *"Create a form called 'Team lunch survey' with a dropdown of three
@@ -82,7 +82,7 @@ claude mcp add google-forms \
   -e GOOGLE_FORMS_CLIENT_ID=your_client_id \
   -e GOOGLE_FORMS_CLIENT_SECRET=your_client_secret \
   -e GOOGLE_FORMS_REFRESH_TOKEN=your_refresh_token \
-  -- npx -y mcp-google-forms
+  -- npx -y mcp-google-forms@latest
 ```
 
 </details>
@@ -97,7 +97,7 @@ claude mcp add google-forms \
   "mcpServers": {
     "google-forms": {
       "command": "npx",
-      "args": ["-y", "mcp-google-forms"],
+      "args": ["-y", "mcp-google-forms@latest"],
       "env": {
         "GOOGLE_FORMS_CLIENT_ID": "your_client_id",
         "GOOGLE_FORMS_CLIENT_SECRET": "your_client_secret",
@@ -120,7 +120,7 @@ claude mcp add google-forms \
   "mcpServers": {
     "google-forms": {
       "command": "npx",
-      "args": ["-y", "mcp-google-forms"],
+      "args": ["-y", "mcp-google-forms@latest"],
       "env": {
         "GOOGLE_FORMS_CLIENT_ID": "your_client_id",
         "GOOGLE_FORMS_CLIENT_SECRET": "your_client_secret",
@@ -144,7 +144,7 @@ claude mcp add google-forms \
     "google-forms": {
       "type": "stdio",
       "command": "npx",
-      "args": ["-y", "mcp-google-forms"],
+      "args": ["-y", "mcp-google-forms@latest"],
       "env": {
         "GOOGLE_FORMS_CLIENT_ID": "your_client_id",
         "GOOGLE_FORMS_CLIENT_SECRET": "your_client_secret",
