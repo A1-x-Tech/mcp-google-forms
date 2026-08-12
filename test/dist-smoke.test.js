@@ -108,6 +108,12 @@ test("dist binary completes a real MCP handshake over stdio and lists every tool
     assert.equal(server?.name, "mcp-google-forms");
     assert.match(String(server?.version), /^\d+\.\d+\.\d+$/);
 
+    // The instructions the calling model reads before it picks any tool.
+    const instructions = client.getInstructions();
+    assert.equal(typeof instructions, "string");
+    assert.ok(instructions.trim().length > 0, "initialize result carries no instructions");
+    assert.match(instructions, /Google Forms API v1/);
+
     const { tools } = await client.listTools();
     assert.deepEqual(tools.map((t) => t.name).sort(), ALL_TOOLS);
 
