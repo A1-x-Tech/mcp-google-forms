@@ -35,7 +35,7 @@ for you, from a blank form to response analysis.
 |---|---|
 | `create_form` | Create a form (optionally publish it right away — API-created forms start unpublished). |
 | `get_form` | Full form structure: info, settings, items with ids, publish state, responder URL. |
-| `update_form_info` | Change the title, description or document title. |
+| `update_form_info` | Change the title or description (the Drive file name is fixed after creation). |
 | `update_form_settings` | Toggle quiz mode and email collection. |
 | `add_question` | Add a question: text, paragraph, radio, checkbox, dropdown, scale, date, time, rating. |
 | `update_question` | Update an existing item by index with an explicit update mask. |

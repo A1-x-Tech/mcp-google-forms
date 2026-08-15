@@ -10,7 +10,7 @@ export function registerFormTools(server: McpServer, client: GoogleFormsClient):
       title: "Create a form",
       annotations: WRITE,
       description:
-        "Creates a new Google Form and returns it (formId, revisionId, responderUri, publishSettings). The API only accepts a title and an optional document title at creation — add questions with add_question and change settings with update_form_settings afterwards. IMPORTANT: API-created forms are UNPUBLISHED by default and do not accept responses; pass publish=true to publish immediately, or call set_publish_settings later. Share the responderUri with respondents once published.",
+        "Creates a new Google Form and returns it (formId, revisionId, responderUri, publishSettings). The API only accepts a title and an optional document title at creation (the Drive file name — it cannot be changed later through this API) — add questions with add_question and change settings with update_form_settings afterwards. IMPORTANT: API-created forms are UNPUBLISHED by default and do not accept responses; pass publish=true to publish immediately, or call set_publish_settings later. If the chained publish step fails, the form still exists: the result carries formId with published:false and publish_error — finish with set_publish_settings, never create_form again. Share the responderUri with respondents once published.",
       inputSchema: {
         title: z.string().min(1).describe("The form title shown to respondents."),
         document_title: z
@@ -58,19 +58,16 @@ export function registerFormTools(server: McpServer, client: GoogleFormsClient):
       title: "Update form info",
       annotations: UPDATE,
       description:
-        "Changes the form's title, description and/or document title (the Drive file name). Only the provided fields are touched (the updateMask is computed automatically); at least one field is required. Returns the batchUpdate replies with the new revisionId.",
+        "Changes the form's title and/or description. Only the provided fields are touched (the updateMask is computed automatically); at least one field is required. The document title (the Drive file name) is set once at create_form and cannot be changed through the Forms API — renaming the file needs the Drive API, which this server does not cover. Returns the batchUpdate replies with the new revisionId.",
       inputSchema: {
         form_id: formIdSchema(),
         title: z.string().optional().describe("New form title shown to respondents."),
         description: z.string().optional().describe("New form description shown under the title."),
-        document_title: z.string().optional().describe("New document name in Google Drive."),
       },
     },
-    async ({ form_id, title, description, document_title }) => {
+    async ({ form_id, title, description }) => {
       try {
-        return ok(
-          await client.updateFormInfo({ formId: form_id, title, description, documentTitle: document_title }),
-        );
+        return ok(await client.updateFormInfo({ formId: form_id, title, description }));
       } catch (e) {
         return fail(e);
       }
@@ -83,7 +80,7 @@ export function registerFormTools(server: McpServer, client: GoogleFormsClient):
       title: "Update form settings",
       annotations: UPDATE,
       description:
-        "Toggles quiz mode (grading with points) and/or the email collection mode. email_collection_type: DO_NOT_COLLECT, VERIFIED (respondent must be signed in; email verified) or RESPONDER_INPUT (respondent types an email). At least one field is required; only the provided fields are touched.",
+        "Toggles quiz mode (grading with points) and/or the email collection mode. Quiz mode only enables grading — points, correct answers and feedback are set per question afterwards via update_question with the questionItem.question.grading mask (add_question cannot set them). email_collection_type: DO_NOT_COLLECT, VERIFIED (respondent must be signed in; email verified) or RESPONDER_INPUT (respondent types an email). At least one field is required; only the provided fields are touched.",
       inputSchema: {
         form_id: formIdSchema(),
         is_quiz: z.boolean().optional().describe("Turn quiz mode on/off (enables per-question grading)."),

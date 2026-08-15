@@ -59,8 +59,8 @@ test("get_form passes the form id through", async () => {
 
 test("update_form_info and update_form_settings forward normalized params", async () => {
   const { calls, tools } = harness();
-  await tools.update_form_info({ form_id: "f", title: "T", document_title: "D" });
-  assert.deepEqual(calls[0].params[0], { formId: "f", title: "T", description: undefined, documentTitle: "D" });
+  await tools.update_form_info({ form_id: "f", title: "T", description: "D" });
+  assert.deepEqual(calls[0].params[0], { formId: "f", title: "T", description: "D" });
   await tools.update_form_settings({ form_id: "f", is_quiz: true, email_collection_type: "VERIFIED" });
   assert.deepEqual(calls[1].params[0], { formId: "f", isQuiz: true, emailCollectionType: "VERIFIED" });
 });
