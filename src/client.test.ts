@@ -191,6 +191,25 @@ test("createForm with publish chains setPublishSettings and merges the result", 
   }
 });
 
+test("createForm keeps the formId when the chained publish fails", async () => {
+  const mock = mockFetch((url) => {
+    if (url.endsWith("/v1/forms")) return okJson({ formId: "f-1", responderUri: "https://x" });
+    return new Response("unavailable", { status: 503 });
+  });
+  try {
+    const result = (await new GoogleFormsClient(staticConfig()).createForm({
+      title: "Survey",
+      publish: true,
+    })) as Record<string, unknown>;
+    assert.equal(result.formId, "f-1", "the created form must survive the publish failure");
+    assert.equal(result.published, false);
+    assert.match(String(result.publish_error), /HTTP 503/);
+    assert.match(String(result.next_step), /set_publish_settings/);
+  } finally {
+    mock.restore();
+  }
+});
+
 test("updateFormInfo computes the updateMask from the provided fields", async () => {
   const mock = mockFetch(defaultHandler);
   try {

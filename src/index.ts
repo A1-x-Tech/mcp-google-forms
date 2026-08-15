@@ -20,12 +20,14 @@ import { registerRawTool } from "./tools/raw.js";
  */
 const INSTRUCTIONS =
   "Google Forms API v1 builds and reads Google Forms — not Sheets, Docs or Drive: the linked " +
-  "responses spreadsheet (linkedSheetId), and deleting or sharing a form, are out of reach. " +
-  "Responses are read-only: no endpoint submits or edits one. File-upload questions cannot be " +
-  "created; grids need raw_request. New forms take only a title/documentTitle and start UNPUBLISHED " +
-  "until published; legacy forms reject set_publish_settings. Items are addressed by 0-based " +
-  "position, not itemId, and each delete or move shifts the rest — re-read get_form between " +
-  "mutations; update_question clears any masked field it omits. Per-minute project quotas: 975 " +
+  "responses spreadsheet (linkedSheetId), and deleting, sharing or renaming the Drive file, are " +
+  "out of reach. Responses are read-only: no endpoint submits or edits one. File-upload questions " +
+  "cannot be created; grids need raw_request. New forms take only a title/documentTitle (the Drive " +
+  "file name — settable only at creation) and start UNPUBLISHED until published; legacy forms " +
+  "reject set_publish_settings. Items are addressed by 0-based position, not itemId, and each " +
+  "delete or move shifts the rest — re-read get_form between mutations; update_question clears " +
+  "any masked field it omits. Quiz mode alone grades nothing: add_question cannot set points — " +
+  "write questionItem.question.grading per question via update_question. Per-minute project quotas: 975 " +
   "reads, 375 writes, 450 list_responses — poll with submitted_after (the only filter; sort " +
   "client-side), don't re-list. Absent respondentEmail/totalScore means email collection or grading " +
   "is off, not lost data; auth that suddenly breaks usually means the consent screen is still in " +

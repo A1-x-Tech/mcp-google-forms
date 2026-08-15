@@ -10,7 +10,7 @@ export function registerItemTools(server: McpServer, client: GoogleFormsClient):
       title: "Add a question",
       annotations: WRITE,
       description:
-        "Adds a question to the form (a convenience wrapper over batchUpdate createItem). Types: text (short answer), paragraph (long answer), radio (single choice), checkbox (multiple choice), dropdown, scale (linear scale low..high), date, time, rating (stars/hearts/thumbs). Choice types require options[]. Returns the created itemId and questionId from the batchUpdate replies. index inserts at that 0-based position; omit it to append at the end (costs one extra read to count items). File-upload questions cannot be created via the API, and question grids (questionGroupItem) need raw_request with a batchUpdate body.",
+        "Adds a question to the form (a convenience wrapper over batchUpdate createItem). Types: text (short answer), paragraph (long answer), radio (single choice), checkbox (multiple choice), dropdown, scale (linear scale low..high), date, time, rating (stars/hearts/thumbs). Choice types require options[]. Returns the created itemId and questionId from the batchUpdate replies. index inserts at that 0-based position; omit it to append at the end (costs one extra read to count items). Quiz grading (points, correct answers, feedback) cannot be set here — after adding, use update_question with the questionItem.question.grading mask. File-upload questions cannot be created via the API, and question grids (questionGroupItem) need raw_request with a batchUpdate body.",
       inputSchema: {
         form_id: formIdSchema(),
         title: z.string().min(1).describe("The question text shown to respondents."),

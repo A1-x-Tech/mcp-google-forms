@@ -348,12 +348,25 @@ export class GoogleFormsClient {
       info: compact({ title: p.title, documentTitle: p.documentTitle }),
     });
     if (p.publish && typeof form.formId === "string") {
-      const published = await this.setPublishSettings({
-        formId: form.formId,
-        isPublished: true,
-        isAcceptingResponses: true,
-      });
-      return { ...form, publishSettings: (published as Record<string, unknown>).publishSettings };
+      // The form already exists here; the Forms API has no list endpoint, so a
+      // thrown publish error would lose the only copy of the formId and push
+      // the caller into re-creating (duplicating) the form.
+      try {
+        const published = await this.setPublishSettings({
+          formId: form.formId,
+          isPublished: true,
+          isAcceptingResponses: true,
+        });
+        return { ...form, publishSettings: (published as Record<string, unknown>).publishSettings };
+      } catch (err) {
+        return {
+          ...form,
+          published: false,
+          publish_error: err instanceof Error ? err.message : String(err),
+          next_step:
+            "The form was created but publishing failed — call set_publish_settings with this formId; do not call create_form again.",
+        };
+      }
     }
     return form;
   }
@@ -380,16 +393,15 @@ export class GoogleFormsClient {
     );
   }
 
-  /** Updates title / description / documentTitle with a computed updateMask. */
-  async updateFormInfo(p: {
-    formId: string;
-    title?: string;
-    description?: string;
-    documentTitle?: string;
-  }): Promise<unknown> {
-    const info = compact({ title: p.title, description: p.description, documentTitle: p.documentTitle });
+  /**
+   * Updates title / description with a computed updateMask. Info.documentTitle
+   * is output-only in batchUpdate: the Drive file name is set at creation and
+   * renamed only through the Drive API, which this server does not cover.
+   */
+  async updateFormInfo(p: { formId: string; title?: string; description?: string }): Promise<unknown> {
+    const info = compact({ title: p.title, description: p.description });
     const mask = Object.keys(info).join(",");
-    if (!mask) throw new Error("At least one of title, description or document_title is required.");
+    if (!mask) throw new Error("At least one of title or description is required.");
     return this.batchUpdate(p.formId, [{ updateFormInfo: { info, updateMask: mask } }]);
   }
 
