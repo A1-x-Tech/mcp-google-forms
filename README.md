@@ -1,96 +1,116 @@
-# Google Forms MCP
+# <img src="./assets/a1-logo.svg" alt="A1" width="40"> Google Forms MCP
+
+**English** | [Русский](./README.ru.md)
 
 [![npm](https://img.shields.io/npm/v/mcp-google-forms)](https://www.npmjs.com/package/mcp-google-forms)
 [![CI](https://github.com/A1-x-Tech/mcp-google-forms/actions/workflows/ci.yml/badge.svg)](https://github.com/A1-x-Tech/mcp-google-forms/actions/workflows/ci.yml)
 [![Glama](https://glama.ai/mcp/servers/A1-x-Tech/mcp-google-forms/badges/score.svg)](https://glama.ai/mcp/servers/A1-x-Tech/mcp-google-forms)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](./LICENSE)
 
-MCP server for the **Google Forms API**: create forms, add and edit questions, publish, read
-responses and set up push notifications for new submissions — from Claude, Cursor, Codex and
-other AI clients, in natural language.
+**A1 Google Forms MCP** lets an AI app build and manage Google Forms in plain language. Create a survey, choose its questions, publish it when ready, read answers and use notifications for new submissions.
 
-Ask your assistant to "make a customer-feedback survey with a rating question and publish it",
-"show me yesterday's responses", or "close the form for responses" — it drives the Forms API
-for you, from a blank form to response analysis.
+It uses the Google Forms API with your Google account. It distinguishes a draft form from a published form and makes the limits of the Forms API explicit instead of implying that every form task is possible.
+
+- **13 tools.** Inspect form structure and responses, create and edit forms and questions, manage publishing, and configure Pub/Sub watches.
+- **Publish deliberately.** Forms made through the API start unpublished, so they cannot collect responses until you publish them.
+- **Responses stay intact.** The API can read responses but cannot create or edit them; the server has no tool that submits answers.
+- **Minimal Google scopes.** It uses `forms.body` and `forms.responses.readonly`, without broad Drive access.
+
+Start with a read-only question:
+
+> Show me yesterday’s responses to the customer feedback form and summarize the free-text answers.
+
+[Connect the server](#quick-start) · [Explore use cases](#what-you-can-ask-it-to-do) · [Open technical documentation](#technical-documentation)
+
+---
+
+## See it work in a minute
+
+> **You:** Show me the questions and response settings of the customer feedback form.
+>
+> **Assistant:** Shows the form, its items, whether it is published and whether it accepts responses. Nothing changes.
+>
+> **You:** Prepare a required 1–5 rating question called “How was your experience?” after the first question.
+>
+> **Assistant:** Shows the target form, position and proposed question, then asks for confirmation before adding it.
+>
+> **You:** Confirm.
+>
+> **Assistant:** Adds the question to the form. It does not publish or close the form unless you ask separately.
+
+## Contents
+
+- [Quick start](#quick-start)
+- [What you can ask it to do](#what-you-can-ask-it-to-do)
+- [How a form changes](#how-a-form-changes)
+- [What can change](#what-can-change)
+- [Getting access](#getting-access)
+- [Configuration](#configuration)
+- [Data, limits and background work](#data-limits-and-background-work)
+- [Technical documentation](#technical-documentation)
+- [Support](#support)
 
 ## Quick start
 
-1. [Get OAuth credentials](#getting-credentials) for the Google Forms API.
-2. Add the server — for example, in Claude Code ([other clients](#installation)):
+You need Node.js 20+, a Google account and OAuth credentials from a Google Cloud project with the Google Forms API enabled.
 
-   ```bash
-   claude mcp add google-forms \
-     -e GOOGLE_FORMS_CLIENT_ID=your_client_id \
-     -e GOOGLE_FORMS_CLIENT_SECRET=your_client_secret \
-     -e GOOGLE_FORMS_REFRESH_TOKEN=your_refresh_token \
-     -- npx -y mcp-google-forms@latest
-   ```
-
-3. Ask the assistant: *"Create a form called 'Team lunch survey' with a dropdown of three
-   restaurants and publish it."*
-
-## Tools
-
-| Tool | Description |
-|---|---|
-| `create_form` | Create a form (optionally publish it right away — API-created forms start unpublished). |
-| `get_form` | Full form structure: info, settings, items with ids, publish state, responder URL. |
-| `update_form_info` | Change the title, description or document title. |
-| `update_form_settings` | Toggle quiz mode and email collection. |
-| `add_question` | Add a question: text, paragraph, radio, checkbox, dropdown, scale, date, time, rating. |
-| `update_question` | Update an existing item by index with an explicit update mask. |
-| `delete_item` | Delete the item at an index. |
-| `move_item` | Reorder items. |
-| `set_publish_settings` | Publish/unpublish, open/close response collection. |
-| `list_responses` | List submissions, incrementally with `submitted_after`; paginated. |
-| `get_response` | Fetch one submission by id. |
-| `manage_watches` | Create/list/delete/renew Cloud Pub/Sub push-notification watches. |
-| `raw_request` | Escape hatch: any Forms API v1 path (e.g. a custom `batchUpdate` with grids). |
-
-Plus resilience built in: automatic OAuth token refresh (including on 401), retries with
-backoff on 429 (and on 5xx/network errors for reads only — writes are never replayed), a
-request timeout, and an SSRF guard so the token can't leak to a foreign host.
-
-## Example prompts
-
-- "Create an RSVP form for the offsite, ask for name, meal preference (veg/meat/fish) and
-  arrival date, then publish it and give me the link."
-- "Turn the 'Onboarding quiz' form into a quiz and make every question required."
-- "How many responses came in since Monday? Summarize the free-text feedback."
-- "Stop accepting responses on the feedback form."
-
-## Limitations (the API's, not the server's)
-
-- **Responses are read-only.** The Forms API cannot submit or edit responses — there is no
-  such endpoint, so this server has no submit tool either.
-- **API-created forms start unpublished** and don't accept responses until published — use
-  `publish: true` on `create_form` or `set_publish_settings`. Legacy forms (from before the
-  publish model) don't support `set_publish_settings` at all.
-- **File-upload questions can't be created** via the API (existing ones are readable).
-- **Quotas are per minute** (reads 975/project, `list_responses` 450, writes 375); the server
-  backs off on 429 automatically.
-
-## Installation
-
-Requires Node.js 20+ (runs via `npx`, no separate install).
+1. [Prepare Google OAuth access](#getting-access).
+2. Add the server to your AI app.
+3. Ask the read-only question above.
 
 <details open>
-<summary><b>Claude Code</b></summary>
+<summary><strong>Codex</strong></summary>
+
+<br>
+
+**In the app:** open **Settings → Plugins → MCP servers**, select **Add server**, then add `npx -y mcp-google-forms@latest` with `GOOGLE_FORMS_CLIENT_ID`, `GOOGLE_FORMS_CLIENT_SECRET` and `GOOGLE_FORMS_REFRESH_TOKEN`.
+
+**From the command line:**
 
 ```bash
-claude mcp add google-forms \
-  -e GOOGLE_FORMS_CLIENT_ID=your_client_id \
-  -e GOOGLE_FORMS_CLIENT_SECRET=your_client_secret \
-  -e GOOGLE_FORMS_REFRESH_TOKEN=your_refresh_token \
+codex mcp add google-forms \
+  --env GOOGLE_FORMS_CLIENT_ID=your_client_id \
+  --env GOOGLE_FORMS_CLIENT_SECRET=your_client_secret \
+  --env GOOGLE_FORMS_REFRESH_TOKEN=your_refresh_token \
   -- npx -y mcp-google-forms@latest
 ```
 
+```bash
+codex mcp list
+```
+
+[Codex MCP documentation](https://learn.chatgpt.com/docs/extend/mcp?surface=cli)
+
 </details>
 
 <details>
-<summary><b>Claude Desktop</b></summary>
+<summary><strong>Claude Code</strong></summary>
 
-`claude_desktop_config.json` — macOS `~/Library/Application Support/Claude/`, Windows `%APPDATA%\Claude\`
+<br>
+
+```bash
+claude mcp add \
+  --env GOOGLE_FORMS_CLIENT_ID=your_client_id \
+  --env GOOGLE_FORMS_CLIENT_SECRET=your_client_secret \
+  --env GOOGLE_FORMS_REFRESH_TOKEN=your_refresh_token \
+  --transport stdio --scope user google-forms \
+  -- npx -y mcp-google-forms@latest
+```
+
+```bash
+claude mcp list
+```
+
+[Claude Code MCP documentation](https://code.claude.com/docs/en/mcp)
+
+</details>
+
+<details>
+<summary><strong>Claude Desktop</strong></summary>
+
+<br>
+
+Open **Settings → Developer → Edit Config** and add:
 
 ```json
 {
@@ -108,39 +128,22 @@ claude mcp add google-forms \
 }
 ```
 
+If **Edit Config** is unavailable, edit `~/Library/Application Support/Claude/claude_desktop_config.json` on macOS or `%APPDATA%\Claude\claude_desktop_config.json` on Windows.
+
+[Claude Desktop MCP documentation](https://support.claude.com/en/articles/10949351-getting-started-with-local-mcp-servers-on-claude-desktop)
+
 </details>
 
 <details>
-<summary><b>Cursor</b></summary>
+<summary><strong>Cursor</strong></summary>
 
-`~/.cursor/mcp.json` (or `.cursor/mcp.json` in the project)
+<br>
+
+Add this to `~/.cursor/mcp.json` on macOS/Linux or `%USERPROFILE%\.cursor\mcp.json` on Windows:
 
 ```json
 {
   "mcpServers": {
-    "google-forms": {
-      "command": "npx",
-      "args": ["-y", "mcp-google-forms@latest"],
-      "env": {
-        "GOOGLE_FORMS_CLIENT_ID": "your_client_id",
-        "GOOGLE_FORMS_CLIENT_SECRET": "your_client_secret",
-        "GOOGLE_FORMS_REFRESH_TOKEN": "your_refresh_token"
-      }
-    }
-  }
-}
-```
-
-</details>
-
-<details>
-<summary><b>VS Code</b></summary>
-
-`.vscode/mcp.json` — note the `servers` key (not `mcpServers`)
-
-```json
-{
-  "servers": {
     "google-forms": {
       "type": "stdio",
       "command": "npx",
@@ -155,67 +158,132 @@ claude mcp add google-forms \
 }
 ```
 
+[Cursor MCP documentation](https://cursor.com/docs/mcp)
+
 </details>
 
-## Getting credentials
+<details>
+<summary><strong>VS Code</strong></summary>
 
-The Forms API has no API-key access — every call needs OAuth 2.0. One-time setup, ~10 minutes:
+<br>
 
-1. **Create a Google Cloud project** (or reuse one) at
-   [console.cloud.google.com](https://console.cloud.google.com/), then enable the
-   **Google Forms API**: *APIs & Services → Library → Google Forms API → Enable*.
-2. **Configure the OAuth consent screen** (*APIs & Services → OAuth consent screen*): choose
-   *External*, fill in the app name and your email, and add your Google account under
-   **Test users** (in Testing mode only listed users can authorize — no app verification needed).
-3. **Create an OAuth client** (*APIs & Services → Credentials → Create credentials → OAuth
-   client ID*), application type **Desktop app**. Save the **client ID** and **client secret**.
-4. **Mint a refresh token.** The easiest way is the
-   [OAuth 2.0 Playground](https://developers.google.com/oauthplayground):
-   - Click the gear icon → check **Use your own OAuth credentials** → paste your client ID and
-     secret (add `https://developers.google.com/oauthplayground` as an authorized redirect URI
-     to the OAuth client first).
-   - In *Step 1*, enter the scopes
-     `https://www.googleapis.com/auth/forms.body https://www.googleapis.com/auth/forms.responses.readonly`
-     and click **Authorize APIs**, signing in with the test-user account.
-   - In *Step 2*, click **Exchange authorization code for tokens** and copy the
-     **refresh token**.
-5. Put the three values into `GOOGLE_FORMS_CLIENT_ID`, `GOOGLE_FORMS_CLIENT_SECRET` and
-   `GOOGLE_FORMS_REFRESH_TOKEN`. The server exchanges the refresh token for short-lived access
-   tokens automatically.
+Run **MCP: Open User Configuration** and add:
 
-Scope notes: `forms.body` + `forms.responses.readonly` is the minimal, recommended pair (no
-broad Drive access). While the consent screen stays in Testing mode, refresh tokens expire
-after 7 days — publish the app (or keep it Internal in a Workspace domain) for long-lived tokens.
+```json
+{
+  "servers": {
+    "google-forms": {
+      "type": "stdio",
+      "command": "npx",
+      "args": ["-y", "mcp-google-forms@latest"],
+      "env": {
+        "GOOGLE_FORMS_CLIENT_ID": "${input:forms_client_id}",
+        "GOOGLE_FORMS_CLIENT_SECRET": "${input:forms_client_secret}",
+        "GOOGLE_FORMS_REFRESH_TOKEN": "${input:forms_refresh_token}"
+      }
+    }
+  },
+  "inputs": [
+    { "type": "promptString", "id": "forms_client_id", "description": "Google OAuth client ID" },
+    { "type": "promptString", "id": "forms_client_secret", "description": "Google OAuth client secret", "password": true },
+    { "type": "promptString", "id": "forms_refresh_token", "description": "Google OAuth refresh token", "password": true }
+  ]
+}
+```
 
-⚠️ The credentials are stored **in plain text** in your client's config — treat them like a
-password. The refresh token grants access to your forms until revoked at
-[myaccount.google.com/permissions](https://myaccount.google.com/permissions).
+Check it with **MCP: List Servers**.
+
+[VS Code MCP documentation](https://code.visualstudio.com/docs/agent-customization/mcp-servers)
+
+</details>
+
+## What you can ask it to do
+
+### Inspect a survey and its answers
+
+- Show this form’s questions, response settings and responder link.
+- How many answers arrived since Monday? Summarize the free-text feedback.
+- Show one response by ID.
+
+### Build and improve a form
+
+- Create an RSVP form with name, meal preference and arrival date.
+- Add a required rating, dropdown, date, time, choice or text question.
+- Reorder a question or update a title, description, quiz mode or email collection.
+
+### Publish and connect notifications
+
+- Publish a prepared form and show its responder URL.
+- Stop accepting new responses without deleting the form.
+- Create, renew or remove a Cloud Pub/Sub watch for new submissions.
+
+## How a form changes
+
+1. `create_form` creates a **form**, which starts unpublished by default.
+2. Questions are **items**, identified by their position in the form.
+3. Publishing makes a form available to respondents; closing response collection leaves it published but stops new submissions.
+4. Responses are a separate read-only record. The API cannot submit, edit or delete a respondent’s answer.
+
+File-upload questions cannot be created through the Forms API, although existing file-upload items can be read. Legacy forms created before Google’s publish model may not support publishing settings.
+
+## What can change
+
+| Operation | What happens | Confirmation boundary |
+|---|---|---|
+| Read a form and its responses | Reads form structure and submissions | No change |
+| Create a form | Adds an unpublished form | Changes Google Forms |
+| Add or move a question | Changes form items | Changes a form |
+| Update form info, settings or an item | Changes title, settings or a selected question | Changes a form |
+| Publish, unpublish, open or close responses | Changes who can use the form | Changes a form’s public availability |
+| Delete an item | Removes a selected question | Destructive |
+| Manage a Pub/Sub watch | Creates, renews or deletes notification delivery | Potentially destructive |
+| Raw API request | Can call API methods without a dedicated tool | Potentially destructive |
+
+The AI client controls confirmation prompts. The server marks reads, writes and destructive tools so the client can distinguish an inspection from a live change.
+
+## Getting access
+
+Google Forms requires OAuth 2.0; an API key is not enough.
+
+1. Create or select a Google Cloud project and enable **Google Forms API**.
+2. Configure the OAuth consent screen and create a **Desktop app** OAuth client.
+3. Authorize the Google account that owns or can edit the forms. The [OAuth 2.0 Playground](https://developers.google.com/oauthplayground) can obtain the refresh token when **Use your own OAuth credentials** is enabled.
+4. Request both scopes:
+
+   ```text
+   https://www.googleapis.com/auth/forms.body
+   https://www.googleapis.com/auth/forms.responses.readonly
+   ```
+
+Testing-mode OAuth refresh tokens can expire after seven days. Publish the OAuth app, or use an Internal app in a Workspace domain, when you need long-lived access. Treat the client secret and refresh token as passwords.
 
 ## Configuration
 
-| Variable | Required | Default | Description |
-|---|---|---|---|
-| `GOOGLE_FORMS_CLIENT_ID` | yes* | — | OAuth2 client id (refresh flow). |
-| `GOOGLE_FORMS_CLIENT_SECRET` | yes* | — | OAuth2 client secret (refresh flow). |
-| `GOOGLE_FORMS_REFRESH_TOKEN` | yes* | — | OAuth2 refresh token (refresh flow). |
-| `GOOGLE_FORMS_ACCESS_TOKEN` | yes* | — | Alternative: a static access token (~1 h lifetime), mostly for testing. |
-| `GOOGLE_FORMS_API_BASE` | no | `https://forms.googleapis.com` | API root override. |
-| `GOOGLE_FORMS_TIMEOUT_MS` | no | `60000` | Per-request timeout, ms. |
-| `GOOGLE_FORMS_MAX_RETRIES` | no | `3` | Retries on transient errors. |
+| Variable | Required | Description |
+|---|---|---|
+| `GOOGLE_FORMS_CLIENT_ID` | Yes* | OAuth client ID. |
+| `GOOGLE_FORMS_CLIENT_SECRET` | Yes* | OAuth client secret. |
+| `GOOGLE_FORMS_REFRESH_TOKEN` | Yes* | OAuth refresh token. |
+| `GOOGLE_FORMS_ACCESS_TOKEN` | Yes* | Short-lived alternative to the OAuth trio. |
+| `GOOGLE_FORMS_API_BASE` | No | Google Forms API base URL override. |
+| `GOOGLE_FORMS_TIMEOUT_MS` | No | Per-request timeout; default `60000` ms. |
+| `GOOGLE_FORMS_MAX_RETRIES` | No | Temporary-error retries; default `3`. |
 
-\* Either the three refresh-flow variables together, **or** `GOOGLE_FORMS_ACCESS_TOKEN`.
+\* Provide either the OAuth trio or an access token.
 
-## Documentation
+## Data, limits and background work
 
-- [All tools](https://github.com/A1-x-Tech/mcp-google-forms/blob/main/docs/TOOLS.md) — full reference with parameters and notes.
-- [Development](https://github.com/A1-x-Tech/mcp-google-forms/blob/main/docs/DEVELOPMENT.md) — build, tests, smoke check, telemetry.
-- [Publishing](https://github.com/A1-x-Tech/mcp-google-forms/blob/main/docs/PUBLISHING.md) — releasing and MCP-catalog listing.
+- **Requests go to Google Forms.** The local server refreshes Google OAuth tokens and calls the Forms API. Its anonymous telemetry contains an installation ID, package version, AI client and platform versions, and tool names — never OAuth tokens, form data, tool arguments or prompts. Set `ASKADS_TELEMETRY=0` to opt out.
+- **Google applies per-minute quotas.** The documented limits are 975 reads per project, 450 `list_responses` calls and 375 writes. On `429`, the server uses backoff; reads also retry after network and `5xx` errors, while writes are not replayed after an uncertain failure.
+- **There is no background polling.** The server runs only when called. Pub/Sub watches can notify your own infrastructure about new responses; if your AI app supports scheduled tasks, it can also check responses periodically.
+
+## Technical documentation
+
+- [All tools and inputs](./docs/TOOLS.md)
+- [Development documentation](./docs/DEVELOPMENT.md)
+- [Publishing documentation](./docs/PUBLISHING.md)
+- [Google Forms API reference](https://developers.google.com/forms/api)
 
 ## Support
 
-Questions, ideas, issues — Telegram [@gistrec](http://t.me/gistrec) or
-[GitHub issues](https://github.com/A1-x-Tech/mcp-google-forms/issues).
-
-## License
-
-MIT — see [LICENSE](./LICENSE).
+Found a bug or need a scenario? [Create an issue](https://github.com/A1-x-Tech/mcp-google-forms/issues) or write in [Telegram](https://t.me/a1_mcp).
