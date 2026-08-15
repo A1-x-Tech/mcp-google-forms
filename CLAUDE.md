@@ -20,12 +20,14 @@ npm run smoke      # live READ-ONLY check (refresh-flow creds; optional form id 
 
 ## Architecture
 
-- `src/config.ts` — env → config; throws `ConfigError` (with a `reason` code) instead of
-  exiting, so `index.ts` can report the drop-off before dying. Credentials: either the
-  refresh triple `GOOGLE_FORMS_CLIENT_ID` + `GOOGLE_FORMS_CLIENT_SECRET` +
-  `GOOGLE_FORMS_REFRESH_TOKEN` (all three or `incomplete_oauth_config`) or
-  `GOOGLE_FORMS_ACCESS_TOKEN`; optional `GOOGLE_FORMS_API_BASE`,
-  `GOOGLE_FORMS_TIMEOUT_MS`, `GOOGLE_FORMS_MAX_RETRIES`.
+- `src/config.ts` — env → config. Credentials: either the refresh triple
+  `GOOGLE_FORMS_CLIENT_ID` + `GOOGLE_FORMS_CLIENT_SECRET` + `GOOGLE_FORMS_REFRESH_TOKEN`
+  (all three or `ConfigError` `incomplete_oauth_config`) or `GOOGLE_FORMS_ACCESS_TOKEN`;
+  optional `GOOGLE_FORMS_API_BASE`, `GOOGLE_FORMS_TIMEOUT_MS`, `GOOGLE_FORMS_MAX_RETRIES`.
+  No credentials at all is NOT an error: the fields stay `undefined` and the server starts
+  degraded. Also home to `CredentialsError` / `MISSING_CREDENTIALS_MESSAGE` (opens with the
+  historical startup error verbatim, then names the variables and the restart) and
+  `hasCredentials()`.
 - `src/client.ts` — all HTTP and all wire mapping. Token lifecycle (cache until ~60s before
   expiry, dedupe concurrent refreshes, one forced re-mint + replay on 401); `request()`
   resolves the path against the base and rejects foreign origins (SSRF guard), enforces an
@@ -43,15 +45,33 @@ npm run smoke      # live READ-ONLY check (refresh-flow creds; optional form id 
   `src/tools/raw.ts` — `raw_request` (GET/POST/DELETE). `src/tools/util.ts` — `ok`/`fail`,
   the four annotation presets (`READ_ONLY`/`WRITE`/`UPDATE`/`DESTRUCTIVE`) and shared zod
   schema factories (`formIdSchema`, `rfc3339Timestamp`, `itemIndexSchema`).
-- `src/index.ts` — wires every `register*` into the McpServer.
+- `src/index.ts` — wires every `register*` into the McpServer. `loadConfigOrDegraded()`
+  catches `ConfigError`, pings `startup_failed` (fire-and-forget) and degrades the config to
+  "no credentials"; an unconfigured start prepends `UNCONFIGURED_PREFIX` — plus
+  `Configuration problem: <message>` when a ConfigError was caught — to the initialize
+  `instructions`, and `oninitialized` sends `server_start` for a configured install or
+  `unconfigured_start` (with the reason) otherwise.
 - `src/telemetry.ts` — anonymous usage pings (ids/names/versions only, never data or
   arguments; fire-and-forget, must never block or throw; opt-out `ASKADS_TELEMETRY=0`).
-  `startup_failed` is the exception: `sendBlocking` awaits it, because the caller exits right
-  after. Its `reason` is a closed vocabulary (`missing_credentials`,
-  `incomplete_oauth_config`) — never a variable's name or value.
+  `server_start` means "a usable install started"; `unconfigured_start` is a degraded start
+  and `startup_failed` a malformed config caught at load — both carry a `reason` from a
+  closed vocabulary (`missing_credentials`, `incomplete_oauth_config`) — never a variable's
+  name or value.
 
 ## Conventions (do not break)
 
+- **Never exit because of configuration.** A server that dies before the MCP handshake leaves
+  the user with a red cross and no reason — telemetry across this line of servers showed that
+  state accounted for nearly every unconfigured install, and almost none of them recovered.
+  Missing credentials are a survivable state: start, answer initialize (with the unconfigured
+  prefix in `instructions`) and tools/list, and let the first tool call fail with
+  `CredentialsError` — its message names the variables to set and says to restart, because
+  credentials come only from the environment. `config.test.ts`, `client.test.ts` and
+  `test/dist-smoke.test.js` pin this.
+- **Credential failures are not transport failures.** `CredentialsError` is thrown in
+  `accessToken()` before any fetch — before the retry/backoff loop, the token mint and the
+  401 replay — because retrying it burns seconds of backoff before the user sees the one
+  message that helps. Pinned by the "fetch never called" assertion in `client.test.ts`.
 - **Never retry a write on 5xx/network errors.** Only 429 (rejected before executing) and GET
   are safe; the gate lives in `request()` and is pinned by tests.
 - **No response-submission tool, ever.** The API cannot submit responses; don't fake it.

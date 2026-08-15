@@ -1,4 +1,4 @@
-import { ConfigError, loadConfig } from "./config.js";
+import { ConfigError, CredentialsError, loadConfig } from "./config.js";
 import { GoogleFormsClient } from "./client.js";
 
 /**
@@ -28,7 +28,8 @@ async function main(): Promise<void> {
 }
 
 main().catch((err) => {
-  // Missing credentials are a user error, not a bug: report without the stack.
-  console.error("smoke failed:", err instanceof ConfigError ? err.message : err);
+  // Missing or malformed credentials are a user error, not a bug: no stack.
+  const userError = err instanceof ConfigError || err instanceof CredentialsError;
+  console.error("smoke failed:", userError ? err.message : err);
   process.exit(1);
 });

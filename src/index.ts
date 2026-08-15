@@ -3,7 +3,7 @@ import { readFileSync } from "node:fs";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { GoogleFormsClient } from "./client.js";
-import { ConfigError, loadConfig } from "./config.js";
+import { ConfigError, DEFAULT_BASE, hasCredentials, loadConfig } from "./config.js";
 import { instrumentToolCalls, Telemetry } from "./telemetry.js";
 import type { GoogleFormsConfig } from "./types.js";
 import { registerFormTools } from "./tools/forms.js";
@@ -34,6 +34,19 @@ const INSTRUCTIONS =
   "Testing, where refresh tokens die after 7 days. Writes hit a live form and are never retried " +
   "after a 5xx or timeout: check with get_form before re-sending; delete_item is final.";
 
+/**
+ * Prepended to INSTRUCTIONS when no credentials are configured. The model reads
+ * this before it picks a tool, so an unconfigured session opens with the fix
+ * rather than with a failed call. There is no in-chat login here: credentials
+ * come only from the environment, so the fix is an operator action + restart.
+ */
+const UNCONFIGURED_PREFIX =
+  "ATTENTION: Google Forms is not connected yet — no credentials are configured, so every " +
+  "tool call will fail. The operator must set GOOGLE_FORMS_CLIENT_ID + " +
+  "GOOGLE_FORMS_CLIENT_SECRET + GOOGLE_FORMS_REFRESH_TOKEN (recommended), or " +
+  "GOOGLE_FORMS_ACCESS_TOKEN with a short-lived access token, in the MCP client's " +
+  "server config and restart this server — the variables are read only at startup. ";
+
 /** Reads the package version so the server reports its real version to MCP clients. */
 function readVersion(): string {
   try {
@@ -45,19 +58,28 @@ function readVersion(): string {
 }
 
 /**
- * Loads the config, reporting the drop-off if it is missing. An unconfigured
- * server dies before the MCP handshake, so this ping is the only trace such an
- * install ever leaves — and it has to be awaited, or process.exit() below would
- * kill the request in flight.
+ * Loads the config without dying on a bad value. A server that exits here never
+ * completes the MCP handshake, so the user sees a dead server and no reason.
+ * Instead the problem is carried into the session, where the model can read it
+ * and relay it: the config degrades to "no credentials" and every tool call
+ * fails with the actionable message.
  */
-async function loadConfigOrExit(telemetry: Telemetry): Promise<GoogleFormsConfig> {
+function loadConfigOrDegraded(telemetry: Telemetry): {
+  config: GoogleFormsConfig;
+  problem?: ConfigError;
+} {
   try {
-    return loadConfig();
+    return { config: loadConfig() };
   } catch (err) {
     if (!(err instanceof ConfigError)) throw err;
     console.error(`Error: ${err.message}`);
-    await telemetry.sendBlocking("startup_failed", { reason: err.reason });
-    process.exit(1);
+    // Fire-and-forget now that the process survives: the historical
+    // `startup_failed` funnel stays comparable, but nothing blocks startup.
+    telemetry.send("startup_failed", { reason: err.reason });
+    return {
+      config: { apiBase: process.env.GOOGLE_FORMS_API_BASE || DEFAULT_BASE },
+      problem: err,
+    };
   }
 }
 
@@ -66,8 +88,12 @@ async function main(): Promise<void> {
   // opt out with ASKADS_TELEMETRY=0. Built before the config so missing
   // credentials can be reported; wired to the server before tools register.
   const telemetry = new Telemetry(readVersion());
-  const config = await loadConfigOrExit(telemetry);
+  const { config, problem } = loadConfigOrDegraded(telemetry);
   const client = new GoogleFormsClient(config);
+
+  // Decided once, at startup: credentials come only from the environment, so
+  // "restart after setting the variables" is the accurate advice to give.
+  const connected = hasCredentials(config);
 
   const server = new McpServer(
     {
@@ -75,13 +101,20 @@ async function main(): Promise<void> {
       version: readVersion(),
     },
     // Surfaces in the initialize result, before the client sees a single tool.
-    { instructions: INSTRUCTIONS },
+    {
+      instructions: connected
+        ? INSTRUCTIONS
+        : UNCONFIGURED_PREFIX + (problem ? `Configuration problem: ${problem.message} ` : "") + INSTRUCTIONS,
+    },
   );
 
   instrumentToolCalls(server, telemetry);
   server.server.oninitialized = () => {
     telemetry.setClientInfo(server.server.getClientVersion());
-    telemetry.send("server_start");
+    // Split on purpose: `server_start` keeps meaning "a usable install started",
+    // so the unconfigured case gets its own event instead of inflating that number.
+    if (connected) telemetry.send("server_start");
+    else telemetry.send("unconfigured_start", { reason: problem?.reason ?? "missing_credentials" });
   };
 
   registerFormTools(server, client);
@@ -92,7 +125,9 @@ async function main(): Promise<void> {
 
   const transport = new StdioServerTransport();
   await server.connect(transport);
-  console.error("mcp-google-forms running on stdio");
+  console.error(
+    `mcp-google-forms running on stdio${connected ? "" : " (no credentials — set the environment variables and restart)"}`,
+  );
 }
 
 main().catch((err) => {

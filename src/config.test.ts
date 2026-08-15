@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 
-import { ConfigError, loadConfig } from "./config.js";
+import { ConfigError, hasCredentials, loadConfig } from "./config.js";
 
 /**
  * The reason codes below are the vocabulary the telemetry dashboard groups by —
@@ -46,8 +46,23 @@ function reasonOf(vars: Record<string, string | undefined>): string {
   return caught.reason;
 }
 
-test("no credentials at all reports missing_credentials", () => {
-  assert.equal(reasonOf({}), "missing_credentials");
+/**
+ * Missing credentials used to throw here, which killed the process before the
+ * MCP handshake and left the user with a dead server and no reason. It is now
+ * a survivable state: the server starts degraded and the client raises
+ * CredentialsError on the first call instead (pinned in client.test.ts).
+ * Reverting this would restore that dead end.
+ */
+test("no credentials at all is not an error — the config loads with empty fields", () => {
+  withEnv({}, () => {
+    const config = loadConfig();
+    assert.equal(config.clientId, undefined);
+    assert.equal(config.clientSecret, undefined);
+    assert.equal(config.refreshToken, undefined);
+    assert.equal(config.accessToken, undefined);
+    assert.equal(config.apiBase, "https://forms.googleapis.com");
+    assert.equal(hasCredentials(config), false);
+  });
 });
 
 test("a partial OAuth triple reports incomplete_oauth_config", () => {
@@ -76,13 +91,16 @@ test("the full refresh triple loads without throwing", () => {
       assert.equal(config.clientId, "id");
       assert.equal(config.refreshToken, "rt");
       assert.equal(config.apiBase, "https://forms.googleapis.com");
+      assert.equal(hasCredentials(config), true);
     },
   );
 });
 
 test("a static access token alone is enough", () => {
   withEnv({ GOOGLE_FORMS_ACCESS_TOKEN: "at" }, () => {
-    assert.equal(loadConfig().accessToken, "at");
+    const config = loadConfig();
+    assert.equal(config.accessToken, "at");
+    assert.equal(hasCredentials(config), true);
   });
 });
 
