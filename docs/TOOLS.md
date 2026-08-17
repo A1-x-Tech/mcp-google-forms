@@ -1,5 +1,7 @@
 # Tools
 
+For task-oriented guidance, open the [MCP capability catalog](./capabilities/index.md). This page remains the technical reference for schemas and API responses.
+
 The Google Forms API mixes reads and writes, so every tool carries explicit MCP
 annotations: reads are `readOnlyHint`, updates are idempotent-but-overwriting,
 deletes are destructive. Inputs use a normalized snake_case vocabulary; the
