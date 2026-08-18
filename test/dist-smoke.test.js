@@ -124,3 +124,46 @@ test("dist binary completes a real MCP handshake over stdio and lists every tool
     await client.close();
   }
 });
+
+/**
+ * The degraded-start contract: without any credentials the binary used to
+ * exit(1) before the handshake, leaving the client a dead server and no reason.
+ * It must now start, list every tool, open the instructions with the fix, and
+ * answer a tool call with the actionable error — offline: the CredentialsError
+ * fires before any fetch, so this test never touches the network.
+ */
+test("dist binary starts without credentials: handshake, tool list, actionable call error", async () => {
+  const env = Object.fromEntries(
+    Object.entries(process.env).filter(
+      ([key, value]) => value !== undefined && !key.startsWith("GOOGLE_FORMS_"),
+    ),
+  );
+  env.ASKADS_TELEMETRY = "0"; // keep the suite offline
+  const transport = new StdioClientTransport({
+    command: process.execPath,
+    args: [fileURLToPath(new URL("../dist/index.js", import.meta.url))],
+    env,
+    stderr: "pipe",
+  });
+  const client = new Client({ name: "dist-smoke-unconfigured", version: "0.0.0" });
+  await client.connect(transport);
+  try {
+    // The model must read the fix before it picks a tool.
+    const instructions = client.getInstructions() ?? "";
+    assert.match(instructions, /not connected/);
+    assert.match(instructions, /GOOGLE_FORMS_CLIENT_ID/);
+    assert.match(instructions, /restart/);
+
+    const { tools } = await client.listTools();
+    assert.deepEqual(tools.map((t) => t.name).sort(), ALL_TOOLS);
+
+    // A tool call fails with the exact message instead of killing the server.
+    const result = await client.callTool({ name: "get_form", arguments: { form_id: "smoke-form" } });
+    assert.equal(result.isError, true);
+    const text = result.content.map((c) => c.text ?? "").join(" ");
+    assert.match(text, /Google OAuth credentials are required: set GOOGLE_FORMS_CLIENT_ID/);
+    assert.match(text, /restart the server/);
+  } finally {
+    await client.close();
+  }
+});

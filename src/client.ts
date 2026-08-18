@@ -6,6 +6,7 @@ import type {
   WatchEventType,
 } from "./types.js";
 import { GoogleFormsError } from "./types.js";
+import { CredentialsError } from "./config.js";
 
 export type HttpMethod = "GET" | "POST" | "DELETE";
 
@@ -150,12 +151,15 @@ export class GoogleFormsClient {
    * Returns a valid Bearer token. With the refresh triple configured, mints an
    * access token from the refresh token and caches it until shortly before it
    * expires (concurrent callers share one in-flight refresh); otherwise the
-   * static GOOGLE_FORMS_ACCESS_TOKEN is used as-is.
+   * static GOOGLE_FORMS_ACCESS_TOKEN is used as-is. With neither configured,
+   * throws {@link CredentialsError} BEFORE any fetch — a missing setup must
+   * never enter the retry/backoff loop or trigger the 401 re-mint, because no
+   * amount of retrying mints credentials.
    */
   private async accessToken(forceRefresh = false): Promise<string> {
     if (!this.canRefresh()) {
-      // loadConfig guarantees accessToken is set when the refresh triple is absent.
-      return this.config.accessToken as string;
+      if (!this.config.accessToken) throw new CredentialsError();
+      return this.config.accessToken;
     }
     if (!forceRefresh && this.cachedToken && Date.now() < this.cachedToken.expiresAt) {
       return this.cachedToken.value;
