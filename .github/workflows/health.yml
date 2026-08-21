@@ -29,8 +29,8 @@ jobs:
       GOOGLE_FORMS_REFRESH_TOKEN: ${{ secrets.GOOGLE_FORMS_REFRESH_TOKEN }}
       GOOGLE_FORMS_SMOKE_FORM_ID: ${{ secrets.GOOGLE_FORMS_SMOKE_FORM_ID }}
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
         with:
           node-version: 20.x
           cache: npm
