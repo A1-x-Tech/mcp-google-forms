@@ -11,7 +11,8 @@
 
 It uses the Google Forms API with your Google account. It distinguishes a draft form from a published form and makes the limits of the Forms API explicit instead of implying that every form task is possible.
 
-- **13 tools.** Inspect form structure and responses, create and edit forms and questions, manage publishing, and configure Pub/Sub watches.
+- **19 tools.** Inspect form structure and responses, create and edit forms and questions, manage publishing, and configure Pub/Sub watches.
+- **Connects from the conversation.** Say "connect Google Forms": the server walks you through the OAuth client, catches Google's redirect on `127.0.0.1` with PKCE and keeps the tokens itself — no config files, no restart.
 - **Publish deliberately.** Forms made through the API start unpublished, so they cannot collect responses until you publish them.
 - **Responses stay intact.** The API can read responses but cannot create or edit them; the server has no tool that submits answers.
 - **Minimal Google scopes.** It uses `forms.body` and `forms.responses.readonly`, without broad Drive access.
@@ -52,10 +53,10 @@ Start with a read-only question:
 
 ## Quick start
 
-You need Node.js 20+, a Google account and OAuth credentials from a Google Cloud project with the Google Forms API enabled.
+You need Node.js 20+ and a Google account. Credentials are not required at install time — the server connects from the conversation.
 
-1. [Prepare Google OAuth access](#getting-access).
-2. Add the server to your AI app.
+1. Add the server to your AI app.
+2. Say "connect Google Forms": the assistant walks you through [creating the OAuth client and approving access](#getting-access) without editing config files.
 3. Ask the read-only question above.
 
 <details open>
@@ -69,9 +70,6 @@ You need Node.js 20+, a Google account and OAuth credentials from a Google Cloud
 
 ```bash
 codex mcp add google-forms \
-  --env GOOGLE_FORMS_CLIENT_ID=your_client_id \
-  --env GOOGLE_FORMS_CLIENT_SECRET=your_client_secret \
-  --env GOOGLE_FORMS_REFRESH_TOKEN=your_refresh_token \
   -- npx -y mcp-google-forms@latest
 ```
 
@@ -90,9 +88,6 @@ codex mcp list
 
 ```bash
 claude mcp add \
-  --env GOOGLE_FORMS_CLIENT_ID=your_client_id \
-  --env GOOGLE_FORMS_CLIENT_SECRET=your_client_secret \
-  --env GOOGLE_FORMS_REFRESH_TOKEN=your_refresh_token \
   --transport stdio --scope user google-forms \
   -- npx -y mcp-google-forms@latest
 ```
@@ -119,12 +114,7 @@ This repository currently publishes an npm stdio package and does not contain a 
   "mcpServers": {
     "google-forms": {
       "command": "npx",
-      "args": ["-y", "mcp-google-forms@latest"],
-      "env": {
-        "GOOGLE_FORMS_CLIENT_ID": "your_client_id",
-        "GOOGLE_FORMS_CLIENT_SECRET": "your_client_secret",
-        "GOOGLE_FORMS_REFRESH_TOKEN": "your_refresh_token"
-      }
+      "args": ["-y", "mcp-google-forms@latest"]
     }
   }
 }
@@ -149,12 +139,7 @@ Add this to `~/.cursor/mcp.json` on macOS/Linux or `%USERPROFILE%\.cursor\mcp.js
     "google-forms": {
       "type": "stdio",
       "command": "npx",
-      "args": ["-y", "mcp-google-forms@latest"],
-      "env": {
-        "GOOGLE_FORMS_CLIENT_ID": "your_client_id",
-        "GOOGLE_FORMS_CLIENT_SECRET": "your_client_secret",
-        "GOOGLE_FORMS_REFRESH_TOKEN": "your_refresh_token"
-      }
+      "args": ["-y", "mcp-google-forms@latest"]
     }
   }
 }
@@ -177,19 +162,9 @@ Run **MCP: Open User Configuration** and add:
     "google-forms": {
       "type": "stdio",
       "command": "npx",
-      "args": ["-y", "mcp-google-forms@latest"],
-      "env": {
-        "GOOGLE_FORMS_CLIENT_ID": "${input:forms_client_id}",
-        "GOOGLE_FORMS_CLIENT_SECRET": "${input:forms_client_secret}",
-        "GOOGLE_FORMS_REFRESH_TOKEN": "${input:forms_refresh_token}"
-      }
+      "args": ["-y", "mcp-google-forms@latest"]
     }
-  },
-  "inputs": [
-    { "type": "promptString", "id": "forms_client_id", "description": "Google OAuth client ID" },
-    { "type": "promptString", "id": "forms_client_secret", "description": "Google OAuth client secret", "password": true },
-    { "type": "promptString", "id": "forms_refresh_token", "description": "Google OAuth refresh token", "password": true }
-  ]
+  }
 }
 ```
 
@@ -245,7 +220,20 @@ The AI client controls confirmation prompts. The server marks reads, writes and 
 
 ## Getting access
 
-Google Forms requires OAuth 2.0; an API key is not enough.
+Google Forms requires OAuth 2.0; an API key is not enough. There are two ways in, and the first one needs no configuration files.
+
+### Connect from the chat (recommended)
+
+Say "connect Google Forms" and the assistant runs the flow with you:
+
+1. `setup_instructions` prints the checklist: create or select a Google Cloud project, enable **Google Forms API**, configure the consent screen and create a **Desktop app** OAuth client.
+2. Download that client's JSON ("Download JSON") and give the assistant its **path** — `set_client` stores it owner-only. The secret never goes through the conversation.
+3. `start_login` returns a Google consent link. Open it **on this machine** and approve; the code comes back to a one-shot listener on `127.0.0.1` (PKCE), never through the chat.
+4. `finish_login` exchanges the code and saves the tokens to `~/.config/mcp-google-forms/credentials.json` (mode 0600).
+
+The tokens are re-read on every call, so the connection works immediately — no restart of the AI app. `auth_status` shows what is connected, `logout` revokes and deletes it.
+
+### Environment variables (CI, unattended installs)
 
 1. Create or select a Google Cloud project and enable **Google Forms API**.
 2. Configure the OAuth consent screen and create a **Desktop app** OAuth client.
@@ -261,12 +249,15 @@ Testing-mode OAuth refresh tokens can expire after seven days. Publish the OAuth
 
 ## Configuration
 
+Every variable is optional — with none of them the server connects [from the chat](#connect-from-the-chat-recommended).
+
 | Variable | Required | Description |
 |---|---|---|
-| `GOOGLE_FORMS_CLIENT_ID` | Yes* | OAuth client ID. |
-| `GOOGLE_FORMS_CLIENT_SECRET` | Yes* | OAuth client secret. |
-| `GOOGLE_FORMS_REFRESH_TOKEN` | Yes* | OAuth refresh token. |
-| `GOOGLE_FORMS_ACCESS_TOKEN` | Yes* | Short-lived alternative to the OAuth trio. |
+| `GOOGLE_FORMS_CLIENT_ID` | No* | OAuth client ID. |
+| `GOOGLE_FORMS_CLIENT_SECRET` | No* | OAuth client secret. |
+| `GOOGLE_FORMS_REFRESH_TOKEN` | No* | OAuth refresh token. |
+| `GOOGLE_FORMS_ACCESS_TOKEN` | No* | Short-lived alternative to the OAuth trio. |
+| `GOOGLE_FORMS_OAUTH_PORT` | No | Fixed loopback port for the in-chat login; useful over SSH port forwarding. |
 | `GOOGLE_FORMS_API_BASE` | No | Google Forms API base URL override. |
 | `GOOGLE_FORMS_TIMEOUT_MS` | No | Per-request timeout; default `60000` ms. |
 | `GOOGLE_FORMS_MAX_RETRIES` | No | Temporary-error retries; default `3`. |

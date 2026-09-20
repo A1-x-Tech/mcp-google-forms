@@ -11,7 +11,8 @@
 
 Сервер работает с Google Forms API через ваш Google-аккаунт. Он отличает черновую форму от опубликованной и явно показывает ограничения API, а не создаёт впечатление, что через форму можно сделать всё.
 
-- **13 инструментов.** Проверка структуры формы и ответов, создание и редактирование форм и вопросов, управление публикацией и Pub/Sub watches.
+- **19 инструментов.** Проверка структуры формы и ответов, создание и редактирование форм и вопросов, управление публикацией и Pub/Sub watches.
+- **Подключение из диалога.** Скажите «подключи Google Формы»: сервер проведёт через создание OAuth-клиента, поймает редирект Google на `127.0.0.1` с PKCE и сам сохранит токены — без конфигов и перезапуска.
 - **Осознанная публикация.** Формы, созданные через API, по умолчанию не опубликованы и не принимают ответы, пока вы их не опубликуете.
 - **Ответы сохраняются как есть.** API умеет читать ответы, но не создавать и не редактировать их; инструмента отправки ответов у сервера нет.
 - **Минимальные scope Google.** Используются `forms.body` и `forms.responses.readonly` без широкого доступа к Drive.
@@ -52,10 +53,10 @@
 
 ## Быстрый старт
 
-Нужны Node.js 20+, Google-аккаунт и OAuth-данные из проекта Google Cloud с включённым Google Forms API.
+Нужны Node.js 20+ и Google-аккаунт. Учётные данные при установке не нужны: сервер подключается прямо в диалоге.
 
-1. [Подготовьте Google OAuth-доступ](#как-получить-доступ).
-2. Добавьте сервер в AI-приложение.
+1. Добавьте сервер в AI-приложение.
+2. Скажите «подключи Google Формы» — ассистент проведёт [создание OAuth-клиента и выдачу доступа](#как-получить-доступ), не трогая конфиги.
 3. Отправьте запрос, который только читает данные.
 
 <details open>
@@ -69,9 +70,6 @@
 
 ```bash
 codex mcp add google-forms \
-  --env GOOGLE_FORMS_CLIENT_ID=your_client_id \
-  --env GOOGLE_FORMS_CLIENT_SECRET=your_client_secret \
-  --env GOOGLE_FORMS_REFRESH_TOKEN=your_refresh_token \
   -- npx -y mcp-google-forms@latest
 ```
 
@@ -90,9 +88,6 @@ codex mcp list
 
 ```bash
 claude mcp add \
-  --env GOOGLE_FORMS_CLIENT_ID=your_client_id \
-  --env GOOGLE_FORMS_CLIENT_SECRET=your_client_secret \
-  --env GOOGLE_FORMS_REFRESH_TOKEN=your_refresh_token \
   --transport stdio --scope user google-forms \
   -- npx -y mcp-google-forms@latest
 ```
@@ -119,12 +114,7 @@ claude mcp list
   "mcpServers": {
     "google-forms": {
       "command": "npx",
-      "args": ["-y", "mcp-google-forms@latest"],
-      "env": {
-        "GOOGLE_FORMS_CLIENT_ID": "your_client_id",
-        "GOOGLE_FORMS_CLIENT_SECRET": "your_client_secret",
-        "GOOGLE_FORMS_REFRESH_TOKEN": "your_refresh_token"
-      }
+      "args": ["-y", "mcp-google-forms@latest"]
     }
   }
 }
@@ -149,12 +139,7 @@ claude mcp list
     "google-forms": {
       "type": "stdio",
       "command": "npx",
-      "args": ["-y", "mcp-google-forms@latest"],
-      "env": {
-        "GOOGLE_FORMS_CLIENT_ID": "your_client_id",
-        "GOOGLE_FORMS_CLIENT_SECRET": "your_client_secret",
-        "GOOGLE_FORMS_REFRESH_TOKEN": "your_refresh_token"
-      }
+      "args": ["-y", "mcp-google-forms@latest"]
     }
   }
 }
@@ -177,19 +162,9 @@ claude mcp list
     "google-forms": {
       "type": "stdio",
       "command": "npx",
-      "args": ["-y", "mcp-google-forms@latest"],
-      "env": {
-        "GOOGLE_FORMS_CLIENT_ID": "${input:forms_client_id}",
-        "GOOGLE_FORMS_CLIENT_SECRET": "${input:forms_client_secret}",
-        "GOOGLE_FORMS_REFRESH_TOKEN": "${input:forms_refresh_token}"
-      }
+      "args": ["-y", "mcp-google-forms@latest"]
     }
-  },
-  "inputs": [
-    { "type": "promptString", "id": "forms_client_id", "description": "Google OAuth client ID" },
-    { "type": "promptString", "id": "forms_client_secret", "description": "Google OAuth client secret", "password": true },
-    { "type": "promptString", "id": "forms_refresh_token", "description": "Google OAuth refresh token", "password": true }
-  ]
+  }
 }
 ```
 
@@ -245,7 +220,20 @@ claude mcp list
 
 ## Как получить доступ
 
-Google Forms требует OAuth 2.0: одного API-ключа недостаточно.
+Google Forms требует OAuth 2.0: одного API-ключа недостаточно. Путей два, и первый не требует править конфигурационные файлы.
+
+### Подключение из диалога (рекомендуемый путь)
+
+Скажите «подключи Google Формы», и ассистент пройдёт флоу вместе с вами:
+
+1. `setup_instructions` выдаёт чек-лист: создать или выбрать проект Google Cloud, включить **Google Forms API**, настроить consent screen и создать OAuth-клиент типа **Desktop app**.
+2. Скачайте JSON этого клиента («Download JSON») и передайте ассистенту **путь** к файлу — `set_client` сохранит его с правами только для владельца. Секрет через переписку не проходит.
+3. `start_login` возвращает ссылку на согласие Google. Откройте её **на этой же машине** и подтвердите доступ: код возвращается на одноразовый слушатель `127.0.0.1` (PKCE), а не в чат.
+4. `finish_login` меняет код на токены и кладёт их в `~/.config/mcp-google-forms/credentials.json` (права 0600).
+
+Токены перечитываются на каждый вызов, поэтому подключение действует немедленно — перезапускать AI-приложение не нужно. `auth_status` показывает состояние, `logout` отзывает токен и удаляет его.
+
+### Переменные окружения (CI и автоматические установки)
 
 1. Создайте или выберите проект Google Cloud и включите **Google Forms API**.
 2. Настройте OAuth consent screen и создайте OAuth-клиент типа **Desktop app**.
@@ -261,12 +249,15 @@ Refresh token OAuth-приложения в режиме Testing может ис
 
 ## Конфигурация
 
+Все переменные необязательные — без единой из них сервер подключается [из диалога](#подключение-из-диалога-рекомендуемый-путь).
+
 | Переменная | Обязательна | Описание |
 |---|---|---|
-| `GOOGLE_FORMS_CLIENT_ID` | Да* | OAuth client ID. |
-| `GOOGLE_FORMS_CLIENT_SECRET` | Да* | OAuth client secret. |
-| `GOOGLE_FORMS_REFRESH_TOKEN` | Да* | OAuth refresh token. |
-| `GOOGLE_FORMS_ACCESS_TOKEN` | Да* | Короткоживущая альтернатива OAuth-тройке. |
+| `GOOGLE_FORMS_CLIENT_ID` | Нет* | OAuth client ID. |
+| `GOOGLE_FORMS_CLIENT_SECRET` | Нет* | OAuth client secret. |
+| `GOOGLE_FORMS_REFRESH_TOKEN` | Нет* | OAuth refresh token. |
+| `GOOGLE_FORMS_ACCESS_TOKEN` | Нет* | Короткоживущая альтернатива OAuth-тройке. |
+| `GOOGLE_FORMS_OAUTH_PORT` | Нет | Фиксированный порт loopback-слушателя для входа из диалога; нужен при пробросе портов по SSH. |
 | `GOOGLE_FORMS_API_BASE` | Нет | Переопределяет базовый URL Google Forms API. |
 | `GOOGLE_FORMS_TIMEOUT_MS` | Нет | Тайм-аут одного запроса; по умолчанию `60000` мс. |
 | `GOOGLE_FORMS_MAX_RETRIES` | Нет | Повторы временных ошибок; по умолчанию `3`. |
