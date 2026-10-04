@@ -1,0 +1,12 @@
+{
+  "mcpServers": {
+    "google-forms": {
+      "type": "stdio",
+      "command": "npx",
+      "args": [
+        "-y",
+        "mcp-google-forms@latest"
+      ]
+    }
+  }
+}

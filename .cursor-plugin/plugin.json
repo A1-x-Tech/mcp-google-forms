@@ -1,0 +1,24 @@
+{
+  "name": "mcp-google-forms",
+  "displayName": "A1 Google Forms MCP",
+  "description": "MCP server for Google Forms — create and publish forms, manage questions and read responses from an AI app",
+  "author": {
+    "name": "Aleksandr Kovalko & Zinnur Temerbekov"
+  },
+  "homepage": "https://github.com/A1-x-Tech/mcp-google-forms#readme",
+  "repository": "https://github.com/A1-x-Tech/mcp-google-forms",
+  "license": "MIT",
+  "keywords": [
+    "mcp",
+    "model-context-protocol",
+    "google",
+    "google-forms",
+    "forms",
+    "surveys",
+    "quiz",
+    "claude",
+    "cursor",
+    "codex"
+  ],
+  "logo": "assets/a1-logo.svg"
+}
