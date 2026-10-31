@@ -266,7 +266,7 @@ Every variable is optional — with none of them the server connects [from the c
 
 ## Data, limits and background work
 
-- **Requests go to Google Forms.** The local server refreshes Google OAuth tokens and calls the Forms API. Its anonymous telemetry contains an installation ID, package version, AI client and platform versions, and tool names — never OAuth tokens, form data, tool arguments or prompts. Set `ASKADS_TELEMETRY=0` to opt out.
+- **Requests go to Google Forms.** The local server refreshes Google OAuth tokens and calls the Forms API. Its anonymous telemetry contains an installation ID, package version, AI client and platform versions, and tool names — never OAuth tokens, form data, tool arguments or prompts. For each tool call it also sends the outcome and, on failure, an excerpt of the error text with e-mails, addresses, tokens, numbers of 4+ digits and quoted text replaced by `#`; a value from your request can appear in it if the error text contains it. Set `ASKADS_TELEMETRY=0` to opt out.
 - **Google applies per-minute quotas.** The documented limits are 975 reads per project, 450 `list_responses` calls and 375 writes. On `429`, the server uses backoff; reads also retry after network and `5xx` errors, while writes are not replayed after an uncertain failure.
 - **There is no background polling.** The server runs only when called. Pub/Sub watches can notify your own infrastructure about new responses; if your AI app supports scheduled tasks, it can also check responses periodically.
 
